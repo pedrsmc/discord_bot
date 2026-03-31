@@ -1,5 +1,8 @@
-require('dotenv').config()
+require('dotenv').config({ path: './src/.env' })
 const { Client, GatewayIntentBits } = require('discord.js')
+
+const on = require('./commands/on.js')
+const clear = require('./commands/clear.js')
 
 const client = new Client({
     intents: [
@@ -9,6 +12,7 @@ const client = new Client({
         GatewayIntentBits.GuildMembers
     ]
 })
+
 
 client.once('ready', () => {
     console.log(`✅ Bot online: ${client.user.tag}`)
@@ -20,10 +24,14 @@ client.on('messageCreate', async (message) => {
     if (!message.content.startsWith('!')) return
 
     const args = message.content.slice(1).trim().split(/ +/)
-    const command = args.shift().toLowerCase()
+    const commandName = args.shift().toLowerCase()
 
-    if (command == "ping") {
-        await message.reply('Pong! 🏓')
+    if (commandName === 'on') {
+        on.execute(message)
+    }
+
+    if (commandName === 'clear') {
+        clear.execute(message, args)
     }
 })
 
