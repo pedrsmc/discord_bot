@@ -1,9 +1,7 @@
 require('dotenv').config({ path: './src/.env' })
-const { Client, GatewayIntentBits } = require('discord.js')
-
-const on = require('./commands/on.js')
-const clear = require('./commands/clear.js')
-const kick = require('./commands/kick.js')
+const { Client, GatewayIntentBits, Events, REST, Routes } = require('discord.js')
+const fs = require('fs')
+const path = require('path')
 
 const client = new Client({
     intents: [
@@ -14,42 +12,82 @@ const client = new Client({
     ]
 })
 
+client.commands = new Map()
+const commands = []
+const commandsPath = path.join(__dirname, 'commands')
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'))
 
-client.once('ready', () => {
-    console.log(`✅ Bot online: ${client.user.tag}`)
-    console.log(`📊 Servidores: ${client.guilds.cache.size}`)
+for (const file of commandFiles) {
+    const command = require(path.join(commandsPath, file))
+    if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command)
+        commands.push(command.data.toJSON())
+        console.log(`✅ Comando carregado: ${command.data.name}`)
+    } else {
+        console.log(`⚠️ Comando em ${file} está faltando data ou execute`)
+    }
+}
+
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN)
+
+client.once(Events.ClientReady, async (readyClient) => {
+    console.log(`✅ Bot online: ${readyClient.user.tag}`)
+    console.log(`📊 Servidores: ${readyClient.guilds.cache.size}`)
+
+    try {
+        await rest.put(
+            Routes.applicationCommands(readyClient.user.id),
+            { body: commands }
+        )
+        console.log('✅ Comandos slash registrados globalmente!')
+    } catch (error) {
+        console.error('❌ Erro ao registrar comandos:', error)
+    }
 })
 
-client.on('guildMemberAdd', (member) => {
+client.on(Events.GuildMemberAdd, (member) => {
     const channel = member.guild.channels.cache.find(ch => ch.name === 'geral')
+    if (!channel) return
 
     const embed = {
-        title: '🎉 Novo Membro!',
-        description: `Bem-vindo(a) ${member.user.tag}!`,
+        title: '🎉 Novo membro!',
+        description: `Bem-vindo(a), ${member.user.tag}!`,
         thumbnail: { url: member.user.displayAvatarURL() },
         color: 0x00ff00
     }
-
     channel.send({ embeds: [embed] })
 })
 
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return
-    if (!message.content.startsWith('!')) return
+client.on(Events.GuildMemberRemove, (member) => {
+    const channel = member.guild.channels.cache.find(ch => ch.name === 'geral')
+    if (!channel) return
 
-    const args = message.content.slice(1).trim().split(/ +/)
-    const commandName = args.shift().toLowerCase()
-
-    if (commandName === 'on') {
-        on.execute(message)
+    const embed = {
+        title: '👋 Até mais!',
+        description: `${member.user.tag} saiu do servidor.`,
+        thumbnail: { url: member.user.displayAvatarURL() },
+        color: 0xff0000
     }
+    channel.send({ embeds: [embed] })
+})
 
-    if (commandName === 'clear') {
-        clear.execute(message, args)
-    }
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return
 
-    if (commandName === 'kick') {
-        kick.execute(message, args)
+    const command = client.commands.get(interaction.commandName)
+    if (!command) return
+
+    try {
+        await command.execute(interaction)
+    } catch (error) {
+        console.error(error)
+        const errorMessage = { content: '❌ Erro ao executar comando!' }
+
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorMessage)
+        } else {
+            await interaction.reply(errorMessage)
+        }
     }
 })
 

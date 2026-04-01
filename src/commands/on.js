@@ -1,6 +1,10 @@
+const { SlashCommandBuilder } = require('discord.js')
+
 module.exports = {
-    name: "on",
-    async execute(message) {
-        message.reply("Estou online! :green_square:")
+    data: new SlashCommandBuilder()
+        .setName('on')
+        .setDescription('Verifica se o bot está online.'),
+    async execute(interaction) {
+        await interaction.reply(':green_circle: Estou online.')
     }
 }

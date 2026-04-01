@@ -1,37 +1,33 @@
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+
 module.exports = {
-    name: "kick",
-    async execute(message, args) {
-        if (!message.member.permissions.has('KickMembers')) {
-            return message.reply('❌ Você não tem permissão para expulsar membros!')
-        }
+    data: new SlashCommandBuilder()
+        .setName('kick')
+        .setDescription('Expulsa um membro do servidor.')
+        .addStringOption(option =>
+            option.setName('membro')
+                .setDescription('Marque o membro que deseja expulsar.')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('motivo')
+                .setDescription('Informe o motivo da expulsão.')
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
 
-        const member = message.mentions.members.first()
+    async execute(interaction) {
+        const member = interaction.options.getMember('membro');
+        const reason = interaction.options.getString('motivo') || 'Motivo não informado';
+
         if (!member) {
-            return message.reply('❌  Mencione um membro para expulsar!')
-        }
-
-        const reason = args.slice(1).join(' ') || 'Não especificado.'
-
-        if (member.id === message.author.id) {
-            return message.reply('❌  Você não pode se expulsar!')
+            return interaction.reply({ content: '❌ Membro não encontrado!' });
         }
 
         if (!member.kickable) {
-            return message.reply('❌  Não tenho permissão para expulsar este membro!')
+            return interaction.reply({ content: '❌ Não tenho permissão para expulsar este membro!' });
         }
 
-        try {
-            try {
-                await member.send(`🔨  Você foi expulso de **${message.guild.name}**\n📝 Motivo: ${reason}`)
-            } catch (err) {
-            }
-
-            await member.kick(reason)
-            await message.reply(`✅  ${member.user.tag} foi expulso!\n\n📝 Motivo: ${reason}`)
-
-        } catch (error) {
-            console.error(error)
-            await message.reply('❌  Erro ao expulsar membro!')
-        }
+        await member.kick(reason);
+        await interaction.reply(`✅ ${member.user.tag} foi expulso!\n\n📝 Motivo: ${reason}`);
     }
 }
